@@ -1,19 +1,27 @@
 VFLAGS ?= -Wall
 
- # These are inane, something as simple as (var == 25) ? : will warn with this on
+# These are inane, something as simple as (var == 25) ? : will warn with this on
 VFLAGS += -Wno-WIDTH
 
-# build/V%__ALL.a: %.sv
-# 	# Generate the verilator makefile + cpp then compile it
-# 	verilator $(VFLAGS) -cc $*.sv --Mdir build/ --build
+VFLAGS += -DDEBUG=1
 
-# build/test_%: build/V%__ALL.a test/%.cpp
-# 	# Compile the testbench together with the verilog object
-# 	g++ -I /usr/share/verilator/include -I build /usr/share/verilator/include/verilated.cpp test/$*.cpp build/V$*__ALL.a -o build/test_$*
+build/V%__ALL.o build/V%.h: %.sv
+	verilator $(VFLAGS) -cc $*.sv --Mdir build/ --build
+
+build/verilated%o: /usr/share/verilator/include/verilated%cpp
+	g++ $^ -c -o $@
+
+build/test_%.o: test/%.cpp build/V%.h
+	g++ -I /usr/share/verilator/include -I build $< -c -o $@
+
+VERILATOR_DEPS = build/verilated.o build/verilated_threads.o
+
+build/test_%: build/V%__ALL.o build/test_%.o $(VERILATOR_DEPS)
+	g++ $? -o build/test_$*
 
 ## More direct way of invoking
-build/test_%: %.sv test/%.cpp
-	verilator $(VFLAGS) -cc $*.sv --Mdir build/ --build test/$*.cpp --exe -o test_$* -DDEBUG=1
+# build/test_%: %.sv test/%.cpp
+# 	verilator $(VFLAGS) -cc $*.sv --Mdir build/ --build test/$*.cpp --exe -o test_$*
 
 .SECONDARY:
 # Need .SECONDARY otherwise dependencies for the test,
@@ -32,4 +40,4 @@ tests: $(patsubst test/%.cpp,test_%,$(wildcard test/*.cpp))
 
 .PHONY: clean
 clean:
-	-rm -rf build/
+	-rm -rf build/*
